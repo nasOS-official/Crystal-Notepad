@@ -1,0 +1,213 @@
+#!/usr/bin/python3
+import sys
+import os
+from PyQt5 import QtCore, QtGui
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QAction, QFontDialog, QFileDialog, QStatusBar, QPushButton, QLabel, QUndoStack
+from PyQt5.QtGui import *
+from PyQt5.Qt import Qt
+from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
+
+
+class Notepad(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.init_ui()
+
+    def init_ui(self):
+        self.text_edit = QTextEdit()
+        self.setCentralWidget(self.text_edit)
+
+        self.init_menu()
+        self.init_status_bar()
+        self.init_undo_redo()
+
+        self.setWindowTitle("Блокнот")
+        self.setGeometry(100, 100, 800, 600)
+        if len(sys.argv) == 2:
+            self.open_file_args(sys.argv[1])
+
+    def init_menu(self):
+        main_menu = self.menuBar()
+
+        file_menu = main_menu.addMenu('Файл')
+        edit_menu = main_menu.addMenu('Правка')
+        format_menu = main_menu.addMenu('Формат')
+        help_menu = main_menu.addMenu('Справка')
+
+        open_action = QAction('Открыть', self)
+        open_action.setShortcut('Ctrl+O')
+        open_action.triggered.connect(self.open_file)
+        file_menu.addAction(open_action)
+
+        save_action = QAction('Сохранить', self)
+        save_action.setShortcut('Ctrl+S')
+        save_action.triggered.connect(self.save_file)
+        file_menu.addAction(save_action)
+
+        undo_action = QAction('Отменить', self)
+        undo_action.setShortcut('Ctrl+Z')
+        undo_action.triggered.connect(self.undo)
+        edit_menu.addAction(undo_action)
+
+        redo_action = QAction('Вернуть', self)
+        redo_action.setShortcut('Ctrl+Y')
+        redo_action.triggered.connect(self.redo)
+        edit_menu.addAction(redo_action)
+
+        font_action = QAction('Шрифт', self)
+        font_action.setShortcut('Ctrl+F')
+        font_action.triggered.connect(self.change_font)
+        format_menu.addAction(font_action)
+
+        print_action = QAction('Печать', self)
+        print_action.setShortcut('Ctrl+P')
+        print_action.triggered.connect(self.print_text)
+        file_menu.addAction(print_action)
+
+        about_action = QAction('О программе', self)
+        about_action.setShortcut('F1')
+        about_action.triggered.connect(self.about)
+        help_menu.addAction(about_action)
+
+        font = QFont("Cantarell", 10)
+        for menu in [file_menu, edit_menu, format_menu]:
+            for action in menu.actions():
+                action.setFont(font)
+        
+
+    def print_text(self):
+        printer = QPrinter()
+        dialog = QPrintDialog(printer, self)
+        if dialog.exec_() == QPrintDialog.Accepted:
+            self.text_edit.print_(printer)
+
+    def init_status_bar(self):
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+
+        zoom_label = QLabel("Масштаб:")
+        zoom_label.setFont(QFont('Cantarell', 10))
+        self.status_bar.addPermanentWidget(zoom_label)
+
+        self.zoom_in_button = QPushButton("+")
+        self.zoom_in_button.clicked.connect(self.zoom_in)
+        self.status_bar.addPermanentWidget(self.zoom_in_button)
+        self.zoom_in_button.setFont(QtGui.QFont("Cantarell", 11, QtGui.QFont.Bold))
+        self.zoom_in_button.setFixedSize(80, 20)
+        self.zoom_in_button.setFlat(True)
+        self.zoom_in_button.setStyleSheet("QPushButton { background-color: rgb(230, 230, 230); border: 0.01px solid; border-radius: 5px; } QPushButton:pressed { background-color: #C2C2C2; }")
+
+        self.zoom_out_button = QPushButton("-")
+        self.zoom_out_button.clicked.connect(self.zoom_out)
+        self.status_bar.addPermanentWidget(self.zoom_out_button)
+        self.zoom_out_button.setFont(QtGui.QFont("Cantarell", 11, QtGui.QFont.Bold))
+        self.zoom_out_button.setFixedSize(80, 20)
+        self.zoom_out_button.setFlat(True)
+        self.zoom_out_button.setStyleSheet("QPushButton { background-color: rgb(230, 230, 230); border: 0.01px solid; border-radius: 5px; } QPushButton:pressed { background-color: #C2C2C2; }")
+
+    def init_undo_redo(self):
+        self.undo_stack = QUndoStack()
+        self.text_edit.undoAvailable.connect(self.undo_stack.canUndoChanged)
+        self.undo_stack.undoTextChanged.connect(self.update_undo_text)
+        self.text_edit.redoAvailable.connect(self.undo_stack.canRedoChanged)
+        self.undo_stack.redoTextChanged.connect(self.update_redo_text)
+
+    def update_undo_text(self, text):
+        self.status_bar.showMessage("Отменить: " + text)
+
+    def update_redo_text(self, text):
+        self.status_bar.showMessage("Вернуть: " + text)
+
+    def open_file(self):
+        file_name, _ = QFileDialog.getOpenFileName(self, "Открыть файл", "", "Текстовые файлы (*.txt);;Все файлы (*)")
+        if file_name:
+            with open(file_name, 'r') as file:
+                text = file.read()
+                self.text_edit.setPlainText(text)
+
+    def save_file(self):
+        file_name, _ = QFileDialog.getSaveFileName(self, "Сохранить файл", "", "Текстовые файлы (*.txt);;Все файлы (*)")
+        if file_name:
+            with open(file_name, 'w') as file:
+                text = self.text_edit.toPlainText()
+                file.write(text)
+
+    def undo(self):
+        self.undo_stack.undo()
+
+    def redo(self):
+        self.undo_stack.redo()
+
+    def change_font(self):
+        font, ok = QFontDialog.getFont()
+        if ok:
+            self.text_edit.setFont(font)
+
+    def zoom_in(self):
+        self.text_edit.zoomIn()
+
+    def zoom_out(self):
+        self.text_edit.zoomOut()
+    
+    def open_file_args(self, file_name):
+        with open(file_name, 'r') as file:
+            text = file.read()
+            self.text_edit.setPlainText(text)
+
+
+
+    def about(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        logo_file = os.path.join(current_dir, 'note.png')
+        about = QMainWindow(self)
+        about.setWindowTitle("О программе")
+        about.setWindowIcon(QIcon(logo_file))
+        about.setFixedSize(345, 340)
+        label = QLabel(about)
+        label.setText("<br><b>Блокнот для Elyzion</b><br>")
+        label.setStyleSheet("color: black; font-size: 20px; font-family: Cantarell;")
+        label.setGeometry(75, 130, 580, 60)
+
+        label2 = QLabel(about)
+        label2.setText("<br>v.0.3<br>Авторы: <br>Игнатьев Илья <br> <a href='https://pj-crystal.github.io/'>Crystal Project©</a> 2023-2024г.")
+        label2.setStyleSheet("color: black; font-size: 15px; font-family: Cantarell; qproperty-alignment: 'AlignCenter'")
+        label2.setGeometry(70, 165, 200, 100)
+        label2.setOpenExternalLinks(True)
+
+        pixmap = QPixmap(logo_file)
+        icon = QLabel(about)
+        icon.setPixmap(pixmap)
+        icon.setGeometry(100, 10, 140, 140)
+
+        ok_button = QPushButton('ОК', about)
+        ok_button.setGeometry(110, 280, 120, 32)
+        ok_button.clicked.connect(about.close)
+        ok_button.setFlat(True)
+        ok_button.setFont(QtGui.QFont("Cantarell", 10, QtGui.QFont.Bold))
+        ok_button.setStyleSheet("QPushButton { background-color: rgb(230, 230, 230); border: 0.01px solid; border-radius: 5px; } QPushButton:pressed { background-color: #C2C2C2; }")
+
+        about.show()
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    palette = QPalette()
+    palette.setColor(QPalette.Window, QColor(250, 250, 250))
+    palette.setColor(QPalette.WindowText, Qt.black)
+    palette.setColor(QPalette.Base, QColor(250, 250, 250))
+    palette.setColor(QPalette.AlternateBase, QColor(250, 250, 250))
+    palette.setColor(QPalette.ToolTipBase, Qt.black)
+    palette.setColor(QPalette.ToolTipText, Qt.black)
+    palette.setColor(QPalette.Text, Qt.black)
+    palette.setColor(QPalette.Button, QColor(230, 230, 230))
+    palette.setColor(QPalette.ButtonText, Qt.black)
+    palette.setColor(QPalette.BrightText, Qt.red)
+    palette.setColor(QPalette.Link, QColor(176, 179, 29))
+    palette.setColor(QPalette.Highlight, QColor(194, 194, 194))
+    palette.setColor(QPalette.HighlightedText, Qt.black)
+    app.setPalette(palette)
+    app.setStyleSheet("QToolTip { color: #ffffff; background-color: #2a82da; border: 0px solid white; }")
+    notepad = Notepad()
+    notepad.show()
+    sys.exit(app.exec_())
